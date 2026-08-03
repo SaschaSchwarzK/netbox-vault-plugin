@@ -1,0 +1,9 @@
+ARG NETBOX_IMAGE=docker.io/netboxcommunity/netbox:v4.6-5.0.2
+FROM ${NETBOX_IMAGE}
+
+COPY plugin-src /plugins/netbox-vault-plugin
+COPY configuration/plugins.py /etc/netbox/config/plugins.py
+
+RUN /usr/local/bin/uv pip install --python /opt/netbox/venv/bin/python --system /plugins/netbox-vault-plugin
+RUN DEBUG="true" SECRET_KEY="dummyKeyWithMinimumLength-------------------------" \
+    /opt/netbox/venv/bin/python /opt/netbox/netbox/manage.py collectstatic --no-input

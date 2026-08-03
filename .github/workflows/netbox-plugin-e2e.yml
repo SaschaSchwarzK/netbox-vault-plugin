@@ -1,0 +1,79 @@
+name: NetBox Plugin E2E
+
+on:
+  push:
+    paths:
+      - '.github/workflows/netbox-plugin-e2e.yml'
+      - 'scripts/**'
+      - 'tests/e2e/**'
+      - 'netbox_vault/**'
+      - 'package.json'
+      - 'tsconfig.json'
+      - 'playwright.config.ts'
+      - 'pyproject.toml'
+      - 'README.md'
+  pull_request:
+    paths:
+      - '.github/workflows/netbox-plugin-e2e.yml'
+      - 'scripts/**'
+      - 'tests/e2e/**'
+      - 'netbox_vault/**'
+      - 'package.json'
+      - 'tsconfig.json'
+      - 'playwright.config.ts'
+      - 'pyproject.toml'
+      - 'README.md'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      NETBOX_DOCKER_REF: release
+      NETBOX_IMAGE: docker.io/netboxcommunity/netbox:v4.6-5.0.2
+      NETBOX_TEST_PORT: 8001
+      VAULT_TEST_PORT: 8201
+      AZURE_TEST_PORT: 4998
+      NETBOX_TEST_ADMIN_USER: admin
+      NETBOX_TEST_ADMIN_EMAIL: admin@example.com
+      NETBOX_TEST_ADMIN_PASSWORD: NetboxVaultTest123!
+      VAULT_TEST_ROOT_TOKEN: root
+      AZURE_TEST_ACCESS_TOKEN: emulator-token
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Show Docker versions
+        run: |
+          docker --version
+          docker compose version
+
+      - name: Install Playwright dependencies
+        run: |
+          npm install
+          npx playwright install --with-deps chromium
+
+      - name: Run plugin e2e suite
+        run: ./scripts/run-e2e-tests.sh
+
+      - name: Upload e2e artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: netbox-plugin-e2e-artifacts
+          path: |
+            .e2e-artifacts/
+            test-results/
+            playwright-report/
+          if-no-files-found: warn

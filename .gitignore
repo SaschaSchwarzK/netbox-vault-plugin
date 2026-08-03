@@ -1,0 +1,35 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Local virtual environments
+.venv/
+venv/
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+
+# Node
+node_modules/
+
+# Test and runtime artifacts
+.ci-artifacts/
+.e2e-artifacts/
+playwright-report/
+test-results/
+
+# OS/editor noise
+.DS_Store
+.idea/
+.vscode/
+
+# Local env files
+.env
+.env.*

@@ -1,0 +1,19 @@
+services:
+  netbox:
+    image: netbox-vault-smoke:latest
+    pull_policy: never
+    build:
+      context: .
+      dockerfile: Dockerfile-Plugins
+      args:
+        NETBOX_IMAGE: ${NETBOX_IMAGE-docker.io/netboxcommunity/netbox:v4.6-5.0.2}
+    ports:
+      - "8000:8080"
+
+  netbox-worker:
+    image: netbox-vault-smoke:latest
+    pull_policy: never
+
+  netbox-housekeeping:
+    image: netbox-vault-smoke:latest
+    pull_policy: never

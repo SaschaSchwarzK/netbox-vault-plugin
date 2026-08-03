@@ -1,0 +1,49 @@
+name: NetBox Docker Smoke Test
+
+on:
+  push:
+    paths:
+      - '.github/workflows/netbox-docker-smoke.yml'
+      - 'ci/**'
+      - 'netbox_vault/**'
+      - 'pyproject.toml'
+      - 'README.md'
+  pull_request:
+    paths:
+      - '.github/workflows/netbox-docker-smoke.yml'
+      - 'ci/**'
+      - 'netbox_vault/**'
+      - 'pyproject.toml'
+      - 'README.md'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      NETBOX_DOCKER_REF: release
+      NETBOX_IMAGE: docker.io/netboxcommunity/netbox:v4.6-5.0.2
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Show Docker versions
+        run: |
+          docker --version
+          docker compose version
+
+      - name: Run NetBox Docker smoke test
+        run: ./ci/smoke-netbox-docker.sh
+
+      - name: Upload Docker logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: netbox-docker-smoke-logs
+          path: .ci-artifacts/
+          if-no-files-found: warn

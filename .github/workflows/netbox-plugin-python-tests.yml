@@ -1,0 +1,66 @@
+name: NetBox Plugin Python Tests
+
+on:
+  push:
+    paths:
+      - '.github/workflows/netbox-plugin-python-tests.yml'
+      - 'scripts/**'
+      - 'tests/e2e/stack/**'
+      - 'netbox_vault/**'
+      - 'pyproject.toml'
+      - 'README.md'
+  pull_request:
+    paths:
+      - '.github/workflows/netbox-plugin-python-tests.yml'
+      - 'scripts/**'
+      - 'tests/e2e/stack/**'
+      - 'netbox_vault/**'
+      - 'pyproject.toml'
+      - 'README.md'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  python-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      NETBOX_DOCKER_REF: release
+      NETBOX_IMAGE: docker.io/netboxcommunity/netbox:v4.6-5.0.2
+      NETBOX_TEST_PORT: 8001
+      VAULT_TEST_PORT: 8201
+      AZURE_TEST_PORT: 4998
+      GCP_TEST_PORT: 8085
+      AWS_TEST_PORT: 4567
+      NETBOX_TEST_ADMIN_USER: admin
+      NETBOX_TEST_ADMIN_EMAIL: admin@example.com
+      NETBOX_TEST_ADMIN_PASSWORD: NetboxVaultTest123!
+      VAULT_TEST_ROOT_TOKEN: root
+      AZURE_TEST_ACCESS_TOKEN: emulator-token
+      GCP_TEST_PROJECT_ID: test-project
+      GCP_TEST_ACCESS_TOKEN: gcp-emulator-token
+      AWS_TEST_REGION: us-east-1
+      AWS_TEST_ACCESS_KEY_ID: test
+      AWS_TEST_SECRET_ACCESS_KEY: test
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Show Docker versions
+        run: |
+          docker --version
+          docker compose version
+
+      - name: Run plugin Python test suite
+        run: ./scripts/run-python-tests.sh
+
+      - name: Upload Python test artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: netbox-plugin-python-test-artifacts
+          path: .e2e-artifacts/
+          if-no-files-found: warn

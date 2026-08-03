@@ -1,0 +1,12 @@
+export const adminUser = process.env.NETBOX_TEST_ADMIN_USER ?? 'admin';
+export const adminPassword = process.env.NETBOX_TEST_ADMIN_PASSWORD ?? 'NetboxVaultTest123!';
+export const netboxBaseUrl = process.env.NETBOX_BASE_URL ?? `http://127.0.0.1:${process.env.NETBOX_TEST_PORT ?? '8001'}`;
+export const hashicorpBaseUrl = process.env.HASHICORP_BASE_URL ?? `http://127.0.0.1:${process.env.VAULT_TEST_PORT ?? '8201'}`;
+export const azureBaseUrl = process.env.AZURE_KEY_VAULT_BASE_URL ?? `https://127.0.0.1:${process.env.AZURE_TEST_PORT ?? '4998'}`;
+export const gcpBaseUrl = process.env.GCP_SECRET_MANAGER_BASE_URL ?? `http://127.0.0.1:${process.env.GCP_TEST_PORT ?? '8085'}`;
+export const awsBaseUrl = process.env.AWS_SECRETS_MANAGER_BASE_URL ?? `http://127.0.0.1:${process.env.AWS_TEST_PORT ?? '4567'}`;
+export const azureAccessToken = process.env.AZURE_TEST_ACCESS_TOKEN ?? 'eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJhdWQiOiJodHRwczovL3ZhdWx0LmF6dXJlLm5ldCIsImlzcyI6Imh0dHBzOi8vMTI3LjAuMC4xOjQ5OTgvZmFrZSIsInN1YiI6ImVtdWxhdG9yIiwianRpIjoiZTItdGVzdCIsImV4cCI6NDA3MDkwODgwMCwiaWF0IjoxNzg1NjgwMDAwfQ.signature';
+export const gcpAccessToken = process.env.GCP_TEST_ACCESS_TOKEN ?? 'gcp-emulator-token';
+export const gcpProjectId = process.env.GCP_TEST_PROJECT_ID ?? 'test-project';
+export const awsRegion = process.env.AWS_TEST_REGION ?? 'us-east-1';
+export const composeProjectName = process.env.COMPOSE_PROJECT_NAME ?? 'netboxvaulte2e';

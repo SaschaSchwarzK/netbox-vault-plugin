@@ -1,0 +1,32 @@
+{% extends 'generic/object.html' %}
+{% load i18n %}
+
+{% block content %}
+<div class="row">
+  <div class="col col-md-6">
+    <div class="card">
+      <h5 class="card-header">{% trans "Vault Backend" %}</h5>
+      <div class="card-body">
+        <table class="table table-hover attr-table">
+          <tr><th>{% trans "Name" %}</th><td>{{ object.name }}</td></tr>
+          <tr><th>{% trans "Type" %}</th><td>{{ object.get_backend_type_display }}</td></tr>
+          <tr><th>{% trans "API URL" %}</th><td>{{ object.api_url }}</td></tr>
+          <tr><th>{% trans "Secret engine" %}</th><td>{{ object.secret_engine|default:"-" }}</td></tr>
+          <tr><th>{% trans "Namespace" %}</th><td>{{ object.default_namespace|default:"-" }}</td></tr>
+          <tr><th>{% trans "Enabled" %}</th><td>{{ object.enabled|yesno }}</td></tr>
+          <tr><th>{% trans "Description" %}</th><td>{{ object.description|default:"-" }}</td></tr>
+        </table>
+      </div>
+    </div>
+  </div>
+  <div class="col col-md-6">
+    <div class="card">
+      <h5 class="card-header">{% trans "Operational Notes" %}</h5>
+      <div class="card-body">
+        <p>{% trans "Authentication credentials are read from PLUGINS_CONFIG using this backend's name or an explicit credentials_key value in extra_config." %}</p>
+        <p>{% trans "Secret metadata is stored in PostgreSQL, while the encrypted cached secret value is stored in Redis so every NetBox app or worker container can read the same cache." %}</p>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock content %}

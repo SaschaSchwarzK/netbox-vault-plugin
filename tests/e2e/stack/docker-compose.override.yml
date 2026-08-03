@@ -1,0 +1,87 @@
+x-netbox-vault-test-env: &netbox_vault_test_env
+  SKIP_SUPERUSER: "false"
+  SUPERUSER_NAME: ${NETBOX_TEST_ADMIN_USER:-admin}
+  SUPERUSER_EMAIL: ${NETBOX_TEST_ADMIN_EMAIL:-admin@example.com}
+  SUPERUSER_PASSWORD: ${NETBOX_TEST_ADMIN_PASSWORD:-NetboxVaultTest123!}
+  VAULT_TEST_ROOT_TOKEN: ${VAULT_TEST_ROOT_TOKEN:-root}
+  AZURE_TEST_ACCESS_TOKEN: ${AZURE_TEST_ACCESS_TOKEN:-eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJhdWQiOiJodHRwczovL3ZhdWx0LmF6dXJlLm5ldCIsImlzcyI6Imh0dHBzOi8vMTI3LjAuMC4xOjQ5OTgvZmFrZSIsInN1YiI6ImVtdWxhdG9yIiwianRpIjoiZTItdGVzdCIsImV4cCI6NDA3MDkwODgwMCwiaWF0IjoxNzg1NjgwMDAwfQ.signature}
+  GCP_TEST_PROJECT_ID: ${GCP_TEST_PROJECT_ID:-test-project}
+  GCP_TEST_ACCESS_TOKEN: ${GCP_TEST_ACCESS_TOKEN:-gcp-emulator-token}
+  AWS_TEST_REGION: ${AWS_TEST_REGION:-us-east-1}
+  AWS_TEST_ACCESS_KEY_ID: ${AWS_TEST_ACCESS_KEY_ID:-test}
+  AWS_TEST_SECRET_ACCESS_KEY: ${AWS_TEST_SECRET_ACCESS_KEY:-test}
+  NETBOX_VAULT_REDIS_KEY_PREFIX: ${NETBOX_VAULT_REDIS_KEY_PREFIX:-netbox_vault_test}
+  NETBOX_VAULT_STARTUP_SYNC_ENABLED: ${NETBOX_VAULT_STARTUP_SYNC_ENABLED:-false}
+
+services:
+  netbox:
+    image: netbox-vault-e2e:latest
+    pull_policy: never
+    build:
+      context: .
+      dockerfile: Dockerfile-Plugins
+      args:
+        NETBOX_IMAGE: ${NETBOX_IMAGE-docker.io/netboxcommunity/netbox:v4.6-5.0.2}
+    ports:
+      - "${NETBOX_TEST_PORT:-8001}:8080"
+    environment:
+      <<: *netbox_vault_test_env
+      NETBOX_VAULT_STARTUP_SYNC_ENABLED: "true"
+
+  netbox-worker:
+    image: netbox-vault-e2e:latest
+    pull_policy: never
+    environment: *netbox_vault_test_env
+
+  netbox-housekeeping:
+    image: netbox-vault-e2e:latest
+    pull_policy: never
+    environment: *netbox_vault_test_env
+
+  vault:
+    image: hashicorp/vault:1.18
+    networks:
+      default:
+        aliases:
+          - vault.test
+    cap_add:
+      - IPC_LOCK
+    ports:
+      - "${VAULT_TEST_PORT:-8201}:8200"
+    environment:
+      VAULT_DEV_ROOT_TOKEN_ID: ${VAULT_TEST_ROOT_TOKEN:-root}
+      VAULT_DEV_LISTEN_ADDRESS: 0.0.0.0:8200
+    command: server -dev -dev-root-token-id=${VAULT_TEST_ROOT_TOKEN:-root} -dev-listen-address=0.0.0.0:8200
+
+  azure-keyvault:
+    image: jamesgoulddev/azure-keyvault-emulator:latest
+    networks:
+      default:
+        aliases:
+          - azure-keyvault.test
+    ports:
+      - "${AZURE_TEST_PORT:-4998}:4997"
+    environment:
+      Persist: "false"
+    volumes:
+      - ./azure-certs:/certs
+
+  gcp-secret-manager:
+    image: ghcr.io/blackwell-systems/gcp-secret-manager-emulator-dual:latest
+    networks:
+      default:
+        aliases:
+          - gcp-secret-manager.test
+    ports:
+      - "${GCP_TEST_PORT:-8085}:8080"
+
+  moto-aws:
+    image: motoserver/moto:latest
+    networks:
+      default:
+        aliases:
+          - aws-secrets.test
+    ports:
+      - "${AWS_TEST_PORT:-4567}:5000"
+    environment:
+      MOTO_PORT: "5000"
