@@ -11,7 +11,7 @@ function runCurl(args: string[]) {
 }
 
 export async function putHashicorpSecret(secretPath: string, key: string, value: string) {
-  const result = runCurl([
+  runCurl([
     '-sSf',
     '-X',
     'POST',
@@ -23,12 +23,21 @@ export async function putHashicorpSecret(secretPath: string, key: string, value:
     '-d',
     JSON.stringify({ data: { [key]: value } }),
   ]);
-  expect(result).toContain('request_id');
+
+  const verify = runCurl([
+    '-sSf',
+    `${hashicorpBaseUrl}/v1/secret/data/${secretPath}`,
+    '-H',
+    `X-Vault-Token: ${process.env.VAULT_TEST_ROOT_TOKEN ?? 'root'}`,
+  ]);
+  expect(verify).toContain(secretPath);
+  expect(verify).toContain(key);
+  expect(verify).toContain(value);
 }
 
 export async function putAzureSecret(secretName: string, value: string) {
-  const result = runCurl([
-    '-sS',
+  runCurl([
+    '-sSf',
     '-k',
     '-X',
     'PUT',
@@ -40,8 +49,16 @@ export async function putAzureSecret(secretName: string, value: string) {
     '-d',
     JSON.stringify({ value }),
   ]);
-  expect(result).toContain('persistedName');
-  expect(result).toContain(secretName);
+
+  const verify = runCurl([
+    '-sSf',
+    '-k',
+    `${azureBaseUrl}/secrets/${secretName}?api-version=7.5`,
+    '-H',
+    `Authorization: Bearer ${azureAccessToken}`,
+  ]);
+  expect(verify).toContain(secretName);
+  expect(verify).toContain(value);
 }
 
 export async function putGoogleSecret(secretName: string, value: string) {
@@ -64,7 +81,7 @@ export async function putGoogleSecret(secretName: string, value: string) {
     }
   }
 
-  const result = runCurl([
+  runCurl([
     '-sSf',
     '-X',
     'POST',
@@ -74,7 +91,13 @@ export async function putGoogleSecret(secretName: string, value: string) {
     '-d',
     JSON.stringify({ payload: { data: Buffer.from(value, 'utf8').toString('base64') } }),
   ]);
-  expect(result).toContain(secretName);
+
+  const verify = runCurl([
+    '-sSf',
+    `${gcpBaseUrl}/v1/${secretResource}/versions/latest:access`,
+  ]);
+  expect(verify).toContain(secretName);
+  expect(verify).toContain(Buffer.from(value, 'utf8').toString('base64'));
 }
 
 export async function putAwsSecret(secretName: string, value: string) {
@@ -85,9 +108,12 @@ export async function putAwsSecret(secretName: string, value: string) {
     `    client.create_secret(Name=${JSON.stringify(secretName)}, SecretString=${JSON.stringify(value)})`,
     'except client.exceptions.ResourceExistsException:',
     '    pass',
-    `response = client.put_secret_value(SecretId=${JSON.stringify(secretName)}, SecretString=${JSON.stringify(value)})`,
-    "print(response['VersionId'])",
+    `client.put_secret_value(SecretId=${JSON.stringify(secretName)}, SecretString=${JSON.stringify(value)})`,
+    `response = client.get_secret_value(SecretId=${JSON.stringify(secretName)})`,
+    "print(response['Name'])",
+    "print(response['SecretString'])",
   ].join('\n');
   const result = netboxPython(script);
-  expect(result).toContain('-');
+  expect(result).toContain(secretName);
+  expect(result).toContain(value);
 }

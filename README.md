@@ -246,6 +246,8 @@ This repository also includes a Playwright-based end-to-end harness that starts 
 - a Google Cloud Secret Manager emulator
 - an AWS Secrets Manager emulator
 
+The backend seed helpers verify writes by reading the secret back from each emulator instead of relying on provider-specific write response bodies. That keeps the suite stable across emulator image changes and GitHub Runner differences.
+
 Start the e2e stack locally with:
 
 ```bash
