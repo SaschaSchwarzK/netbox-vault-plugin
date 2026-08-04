@@ -13,6 +13,7 @@
           <tr><th>{% trans "API URL" %}</th><td>{{ object.api_url }}</td></tr>
           <tr><th>{% trans "Secret engine" %}</th><td>{{ object.secret_engine|default:"-" }}</td></tr>
           <tr><th>{% trans "Namespace" %}</th><td>{{ object.default_namespace|default:"-" }}</td></tr>
+          <tr><th>{% trans "Read only" %}</th><td>{{ object.read_only|yesno }}</td></tr>
           <tr><th>{% trans "Enabled" %}</th><td>{{ object.enabled|yesno }}</td></tr>
           <tr><th>{% trans "Description" %}</th><td>{{ object.description|default:"-" }}</td></tr>
         </table>
@@ -25,6 +26,11 @@
       <div class="card-body">
         <p>{% trans "Authentication credentials are read from PLUGINS_CONFIG using this backend's name or an explicit credentials_key value in extra_config." %}</p>
         <p>{% trans "Secret metadata is stored in PostgreSQL, while the encrypted cached secret value is stored in Redis so every NetBox app or worker container can read the same cache." %}</p>
+        {% if object.read_only %}
+        <p>{% trans "This backend is read-only. NetBox can refresh and read cached secrets, but it will not write secret values back to the upstream vault." %}</p>
+        {% else %}
+        <p>{% trans "This backend allows NetBox-driven secret updates. Submitted plaintext values are written to the upstream vault and are never shown again by the UI." %}</p>
+        {% endif %}
       </div>
     </div>
   </div>

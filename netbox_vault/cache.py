@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from functools import lru_cache, wraps
 import json
 import logging
+from time import monotonic
 import uuid
 
 from django.conf import settings
@@ -19,6 +21,25 @@ logger = logging.getLogger(__name__)
 
 class SecretCacheUnavailableError(RuntimeError):
     pass
+
+
+def timed_lru_cache(seconds: int = 20, maxsize: int = 128):
+    def wrapper_cache(func):
+        cached_func = lru_cache(maxsize=maxsize)(func)
+        cached_func.lifetime = seconds
+        cached_func.expiration = monotonic() + seconds
+
+        @wraps(cached_func)
+        def wrapped_func(*args, **kwargs):
+            if monotonic() >= cached_func.expiration:
+                cached_func.cache_clear()
+                cached_func.expiration = monotonic() + cached_func.lifetime
+            return cached_func(*args, **kwargs)
+
+        wrapped_func.cache_clear = cached_func.cache_clear
+        return wrapped_func
+
+    return wrapper_cache
 
 
 @dataclass(frozen=True)
@@ -46,6 +67,14 @@ def _get_cache_location() -> str | None:
 
 def get_redis_url() -> str | None:
     return _plugin_setting("redis_url") or _get_cache_location()
+
+
+def _get_local_secret_cache_ttl() -> int:
+    return int(_plugin_setting("local_secret_cache_ttl", 10) or 10)
+
+
+def _get_local_secret_cache_maxsize() -> int:
+    return int(_plugin_setting("local_secret_cache_maxsize", 256) or 256)
 
 
 def _build_netbox_redis_client() -> redis.Redis | None:
@@ -117,7 +146,8 @@ def get_redis_client() -> redis.Redis:
 
 def get_cache_key(secret) -> str:
     prefix = (_plugin_setting("redis_key_prefix", "netbox_vault") or "netbox_vault").strip(":")
-    return f"{prefix}:secret:{secret.pk}"
+    secret_pk = getattr(secret, "pk", secret)
+    return f"{prefix}:secret:{secret_pk}"
 
 
 def get_startup_lock_key() -> str:
@@ -159,6 +189,10 @@ def read_cached_secret_payload(secret) -> CachedSecretPayload | None:
     )
 
 
+def invalidate_local_secret_cache():
+    _get_cached_secret_value_local.cache_clear()
+
+
 def write_cached_secret(secret, plaintext: str):
     payload = {
         "version": 1,
@@ -170,6 +204,7 @@ def write_cached_secret(secret, plaintext: str):
         get_redis_client().set(get_cache_key(secret), json.dumps(payload))
     except RedisError as exc:
         raise SecretCacheUnavailableError("Unable to write to the Redis-backed secret cache.") from exc
+    invalidate_local_secret_cache()
     return payload
 
 
@@ -178,13 +213,19 @@ def delete_cached_secret(secret):
         get_redis_client().delete(get_cache_key(secret))
     except RedisError as exc:
         raise SecretCacheUnavailableError("Unable to delete from the Redis-backed secret cache.") from exc
+    invalidate_local_secret_cache()
+
+
+@timed_lru_cache(seconds=_get_local_secret_cache_ttl(), maxsize=_get_local_secret_cache_maxsize())
+def _get_cached_secret_value_local(secret_pk: int, secret_name: str) -> str:
+    payload = read_cached_secret_payload(secret_pk)
+    if payload is None:
+        raise SecretDecryptionError(f"Secret '{secret_name}' has no cached value.")
+    return decrypt_value(payload.ciphertext)
 
 
 def get_cached_secret_value(secret) -> str:
-    payload = read_cached_secret_payload(secret)
-    if payload is None:
-        raise SecretDecryptionError(f"Secret '{secret.name}' has no cached value.")
-    return decrypt_value(payload.ciphertext)
+    return _get_cached_secret_value_local(secret.pk, secret.name)
 
 
 def acquire_startup_sync_lock() -> str | None:

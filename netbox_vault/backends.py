@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from base64 import b64decode
+from base64 import b64decode, b64encode
 from dataclasses import dataclass
 import json
 from urllib.parse import urlparse
@@ -79,25 +79,30 @@ class BaseVaultClient:
     def fetch_secret(self, secret: VaultSecret) -> str:
         raise NotImplementedError
 
+    def store_secret(self, secret: VaultSecret, value: str) -> None:
+        raise NotImplementedError
+
 
 class HashiCorpVaultClient(BaseVaultClient):
-    def fetch_secret(self, secret: VaultSecret) -> str:
+    def _get_headers(self):
         token = _get_backend_config_value(self.backend, "token")
         if not token:
             raise BackendConfigurationError(
                 f"Missing HashiCorp token for backend '{self.backend.name}' in PLUGINS_CONFIG."
             )
 
-        engine = self.backend.secret_engine or "secret"
-        path = secret.secret_path.strip("/")
-        url = f"{self.backend.api_url.rstrip('/')}/v1/{engine}/data/{path}"
         headers = {"X-Vault-Token": token}
-
         namespace = _get_backend_config_value(self.backend, "namespace") or self.backend.default_namespace
         if namespace:
             headers["X-Vault-Namespace"] = namespace
+        return headers
 
-        response = requests.get(url, headers=headers, timeout=self.timeout, verify=self.request_verify)
+    def fetch_secret(self, secret: VaultSecret) -> str:
+        engine = self.backend.secret_engine or "secret"
+        path = secret.secret_path.strip("/")
+        url = f"{self.backend.api_url.rstrip('/')}/v1/{engine}/data/{path}"
+
+        response = requests.get(url, headers=self._get_headers(), timeout=self.timeout, verify=self.request_verify)
         if response.status_code >= 400:
             raise SecretRefreshError(
                 f"HashiCorp Vault request failed with status {response.status_code}: {response.text}"
@@ -111,6 +116,22 @@ class HashiCorpVaultClient(BaseVaultClient):
             raise SecretRefreshError(
                 f"HashiCorp Vault payload at '{secret.secret_path}' does not contain key '{secret.secret_key}'."
             ) from exc
+
+    def store_secret(self, secret: VaultSecret, value: str) -> None:
+        engine = self.backend.secret_engine or "secret"
+        path = secret.secret_path.strip("/")
+        url = f"{self.backend.api_url.rstrip('/')}/v1/{engine}/data/{path}"
+        response = requests.post(
+            url,
+            headers=self._get_headers(),
+            json={"data": {secret.secret_key: value}},
+            timeout=self.timeout,
+            verify=self.request_verify,
+        )
+        if response.status_code >= 400:
+            raise SecretRefreshError(
+                f"HashiCorp Vault write request failed with status {response.status_code}: {response.text}"
+            )
 
 
 class AzureKeyVaultClient(BaseVaultClient):
@@ -172,6 +193,22 @@ class AzureKeyVaultClient(BaseVaultClient):
                 f"Azure Key Vault response for secret '{secret.secret_path}' did not include a value."
             )
         return str(value)
+
+    def store_secret(self, secret: VaultSecret, value: str) -> None:
+        token = self._get_access_token()
+        api_version = self.backend.azure_api_version or "7.5"
+        url = f"{self.backend.api_url.rstrip('/')}/secrets/{secret.secret_path}?api-version={api_version}"
+        response = requests.put(
+            url,
+            headers={"Authorization": f"Bearer {token}"},
+            json={"value": value},
+            timeout=self.timeout,
+            verify=self.request_verify,
+        )
+        if response.status_code >= 400:
+            raise SecretRefreshError(
+                f"Azure Key Vault write request failed with status {response.status_code}: {response.text}"
+            )
 
 
 class GoogleCloudSecretManagerClient(BaseVaultClient):
@@ -236,6 +273,25 @@ class GoogleCloudSecretManagerClient(BaseVaultClient):
             return f"projects/{project_id}/secrets/{path}"
         return f"projects/{project_id}/secrets/{path}/versions/latest"
 
+    def _build_secret_parent_resource(self, secret: VaultSecret) -> str:
+        path = secret.secret_path.strip("/")
+        if path.startswith("projects/"):
+            if "/versions/" in path:
+                return path.split("/versions/", 1)[0]
+            return path
+
+        project_id = self._get_project_id()
+        if not project_id:
+            raise BackendConfigurationError(
+                f"Google Cloud backend '{self.backend.name}' requires a project_id when secret_path is not a full resource name."
+            )
+
+        if path.startswith("secrets/"):
+            return f"projects/{project_id}/{path}"
+        if "/versions/" in path:
+            return f"projects/{project_id}/secrets/{path.split('/versions/', 1)[0]}"
+        return f"projects/{project_id}/secrets/{path}"
+
     def fetch_secret(self, secret: VaultSecret) -> str:
         token = self._get_access_token()
         resource = self._build_secret_resource(secret)
@@ -259,6 +315,22 @@ class GoogleCloudSecretManagerClient(BaseVaultClient):
             )
         return b64decode(encoded_value).decode("utf-8")
 
+    def store_secret(self, secret: VaultSecret, value: str) -> None:
+        token = self._get_access_token()
+        resource = self._build_secret_parent_resource(secret)
+        url = f"{self.backend.api_url.rstrip('/')}/v1/{resource}:addVersion"
+        response = requests.post(
+            url,
+            headers={"Authorization": f"Bearer {token}"},
+            json={"payload": {"data": b64encode(value.encode("utf-8")).decode("utf-8")}},
+            timeout=self.timeout,
+            verify=self.request_verify,
+        )
+        if response.status_code >= 400:
+            raise SecretRefreshError(
+                f"Google Cloud Secret Manager write request failed with status {response.status_code}: {response.text}"
+            )
+
 
 class AWSSecretsManagerClient(BaseVaultClient):
     def _get_region_name(self) -> str:
@@ -276,7 +348,7 @@ class AWSSecretsManagerClient(BaseVaultClient):
             f"Missing AWS region_name for backend '{self.backend.name}' in PLUGINS_CONFIG or endpoint URL."
         )
 
-    def fetch_secret(self, secret: VaultSecret) -> str:
+    def _get_client(self):
         access_key_id = _get_backend_config_value(self.backend, "access_key_id")
         secret_access_key = _get_backend_config_value(self.backend, "secret_access_key")
         if not access_key_id or not secret_access_key:
@@ -290,12 +362,14 @@ class AWSSecretsManagerClient(BaseVaultClient):
             aws_session_token=_get_backend_config_value(self.backend, "session_token"),
             region_name=self._get_region_name(),
         )
-        client = session.client(
+        return session.client(
             "secretsmanager",
             endpoint_url=self.backend.api_url.rstrip('/'),
             verify=self.request_verify,
         )
 
+    def fetch_secret(self, secret: VaultSecret) -> str:
+        client = self._get_client()
         try:
             payload = client.get_secret_value(SecretId=secret.secret_path)
         except (BotoCoreError, ClientError) as exc:
@@ -312,6 +386,13 @@ class AWSSecretsManagerClient(BaseVaultClient):
         if isinstance(binary_value, bytes):
             return binary_value.decode("utf-8")
         return b64decode(binary_value).decode("utf-8")
+
+    def store_secret(self, secret: VaultSecret, value: str) -> None:
+        client = self._get_client()
+        try:
+            client.put_secret_value(SecretId=secret.secret_path, SecretString=value)
+        except (BotoCoreError, ClientError) as exc:
+            raise SecretRefreshError(f"AWS Secrets Manager write request failed: {exc}") from exc
 
 
 def get_vault_client(backend: VaultBackend) -> BaseVaultClient:

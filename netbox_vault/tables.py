@@ -11,12 +11,13 @@ class VaultBackendTable(NetBoxTable):
     name = tables.Column(linkify=True, verbose_name=_("Name"))
     backend_type = tables.Column(verbose_name=_("Type"))
     api_url = tables.Column(verbose_name=_("API URL"))
+    read_only = BooleanColumn(verbose_name=_("Read only"))
     enabled = BooleanColumn(verbose_name=_("Enabled"))
 
     class Meta(NetBoxTable.Meta):
         model = VaultBackend
-        fields = ("pk", "id", "name", "backend_type", "api_url", "enabled", "last_updated")
-        default_columns = ("name", "backend_type", "api_url", "enabled", "last_updated")
+        fields = ("pk", "id", "name", "backend_type", "api_url", "read_only", "enabled", "last_updated")
+        default_columns = ("name", "backend_type", "api_url", "read_only", "enabled", "last_updated")
 
 
 class VaultSecretTable(NetBoxTable):

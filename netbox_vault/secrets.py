@@ -91,6 +91,53 @@ def refresh_secret(secret: VaultSecret) -> VaultSecret:
     return secret
 
 
+def set_secret_value(identifier, value: str, refresh_cache: bool = True) -> VaultSecret:
+    secret = get_secret_record(identifier)
+    if secret.vault_backend.read_only:
+        raise SecretRefreshError(f"Vault backend '{secret.vault_backend.name}' is configured as read-only.")
+    secret.last_refresh_attempt = timezone.now()
+    try:
+        get_vault_client(secret.vault_backend).store_secret(secret, value)
+        secret.last_refreshed = timezone.now()
+        secret.last_refresh_status = RefreshStatusChoices.SYNCED
+        secret.last_refresh_error = ""
+        if refresh_cache:
+            write_cached_secret(secret, value)
+            secret.cache_present = True
+    except Exception as exc:
+        if secret.last_refreshed and has_cached_secret(secret):
+            secret.last_refresh_status = RefreshStatusChoices.STALE
+        else:
+            secret.last_refresh_status = RefreshStatusChoices.FAILED
+            if refresh_cache:
+                secret.cache_present = False
+        secret.last_refresh_error = str(exc)
+        secret.save(
+            update_fields=(
+                "cache_present",
+                "last_refresh_attempt",
+                "last_refresh_status",
+                "last_refresh_error",
+                "last_updated",
+            )
+        )
+        if isinstance(exc, SecretRefreshError):
+            raise
+        raise SecretRefreshError(str(exc)) from exc
+
+    update_fields = [
+        "last_refreshed",
+        "last_refresh_attempt",
+        "last_refresh_status",
+        "last_refresh_error",
+        "last_updated",
+    ]
+    if refresh_cache:
+        update_fields.insert(0, "cache_present")
+    secret.save(update_fields=tuple(update_fields))
+    return secret
+
+
 def _refresh_matching_secrets(secrets: Iterable[VaultSecret], raise_on_failure: bool = False) -> tuple[list[VaultSecret], list[tuple[str, str]]]:
     refreshed = []
     failures = []

@@ -25,6 +25,7 @@ urlpatterns = [
     path("secrets/<int:pk>/", views.VaultSecretView.as_view(), name="vaultsecret"),
     path("secrets/<int:pk>/edit/", views.VaultSecretEditView.as_view(), name="vaultsecret_edit"),
     path("secrets/<int:pk>/delete/", views.VaultSecretDeleteView.as_view(), name="vaultsecret_delete"),
+    path("secrets/<int:pk>/set-value/", views.SetSecretValueView.as_view(), name="vaultsecret_set_value"),
     path(
         "secrets/<int:pk>/changelog/",
         generic.ObjectChangeLogView.as_view(),

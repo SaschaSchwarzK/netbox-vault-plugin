@@ -19,6 +19,7 @@ from netbox_vault.secrets import (
     refresh_due_or_missing_cache_secrets,
     refresh_secret,
     run_startup_secret_sync,
+    set_secret_value,
 )
 
 
@@ -74,6 +75,32 @@ class SecretServiceTests(TestCase):
         write_cached_secret_mock.assert_called_once()
         self.assertEqual(get_secret_value(refreshed.name), 'plaintext-value')
 
+    @patch('netbox_vault.secrets.write_cached_secret')
+    @patch('netbox_vault.secrets.get_vault_client')
+    def test_set_secret_value_updates_upstream_and_cache(self, get_vault_client_mock, write_cached_secret_mock):
+        secret = self.create_secret('set-secret')
+
+        updated = set_secret_value(secret, 'new-value')
+        updated.refresh_from_db()
+
+        get_vault_client_mock.return_value.store_secret.assert_called_once_with(secret, 'new-value')
+        write_cached_secret_mock.assert_called_once_with(updated, 'new-value')
+        self.assertEqual(updated.last_refresh_status, RefreshStatusChoices.SYNCED)
+        self.assertTrue(updated.cache_present)
+
+    @patch('netbox_vault.secrets.get_vault_client')
+    def test_set_secret_value_rejects_read_only_backend(self, get_vault_client_mock):
+        self.backend.read_only = True
+        self.backend.save(update_fields=('read_only', 'last_updated'))
+        secret = self.create_secret('set-read-only')
+
+        with self.assertRaises(SecretRefreshError) as ctx:
+            set_secret_value(secret, 'new-value')
+
+        self.assertIn('read-only', str(ctx.exception))
+        get_vault_client_mock.assert_not_called()
+
+
     @patch('netbox_vault.secrets.has_cached_secret', return_value=False)
     @patch('netbox_vault.secrets.get_vault_client')
     def test_refresh_secret_failure_without_previous_cache_marks_failed(self, get_vault_client_mock, has_cached_secret_mock):
@@ -106,6 +133,21 @@ class SecretServiceTests(TestCase):
         secret.refresh_from_db()
         self.assertEqual(secret.last_refresh_status, RefreshStatusChoices.STALE)
         self.assertEqual(secret.last_refresh_error, 'still failing')
+        self.assertTrue(secret.cache_present)
+        has_cached_secret_mock.assert_called_once()
+
+    @patch('netbox_vault.secrets.has_cached_secret', return_value=True)
+    @patch('netbox_vault.secrets.get_vault_client')
+    def test_set_secret_value_failure_with_previous_cache_marks_stale(self, get_vault_client_mock, has_cached_secret_mock):
+        secret = self.create_secret('set-fail-stale', cache_present=True, last_refreshed=timezone.now() - timedelta(hours=2))
+        get_vault_client_mock.return_value.store_secret.side_effect = RuntimeError('write failed')
+
+        with self.assertRaises(SecretRefreshError):
+            set_secret_value(secret, 'new-value')
+
+        secret.refresh_from_db()
+        self.assertEqual(secret.last_refresh_status, RefreshStatusChoices.STALE)
+        self.assertEqual(secret.last_refresh_error, 'write failed')
         self.assertTrue(secret.cache_present)
         has_cached_secret_mock.assert_called_once()
 

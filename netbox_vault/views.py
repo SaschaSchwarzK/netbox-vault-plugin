@@ -1,6 +1,6 @@
 from django.contrib import messages
 from django.http import HttpResponseForbidden
-from django.shortcuts import get_object_or_404, redirect
+from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils.translation import gettext_lazy as _
 from django.views import View
@@ -10,7 +10,8 @@ from netbox.views import generic
 from utilities.views import register_model_view
 
 from . import filtersets, forms, models, tables
-from .secrets import refresh_all_secrets, refresh_secret
+from .backends import SecretRefreshError
+from .secrets import refresh_all_secrets, refresh_secret, set_secret_value
 
 
 class HomeView(RedirectView):
@@ -67,6 +68,40 @@ class VaultSecretEditView(generic.ObjectEditView):
 @register_model_view(models.VaultSecret, name="delete")
 class VaultSecretDeleteView(generic.ObjectDeleteView):
     queryset = models.VaultSecret.objects.select_related("vault_backend")
+
+
+class SetSecretValueView(View):
+    template_name = "netbox_vault/vaultsecret_set_value.html"
+
+    def get(self, request, pk):
+        if not request.user.has_perm("netbox_vault.change_vaultsecret"):
+            return HttpResponseForbidden()
+
+        secret = get_object_or_404(models.VaultSecret.objects.select_related("vault_backend"), pk=pk)
+        if secret.vault_backend.read_only:
+            messages.error(request, _("This vault backend is configured as read-only."))
+            return redirect(secret.get_absolute_url())
+
+        return render(request, self.template_name, {"object": secret, "form": forms.VaultSecretValueForm()})
+
+    def post(self, request, pk):
+        if not request.user.has_perm("netbox_vault.change_vaultsecret"):
+            return HttpResponseForbidden()
+
+        secret = get_object_or_404(models.VaultSecret.objects.select_related("vault_backend"), pk=pk)
+        if secret.vault_backend.read_only:
+            messages.error(request, _("This vault backend is configured as read-only."))
+            return redirect(secret.get_absolute_url())
+
+        form = forms.VaultSecretValueForm(request.POST)
+        if form.is_valid():
+            try:
+                set_secret_value(secret, form.cleaned_data["value"])
+                messages.success(request, _("Secret value updated in the vault and cache refreshed successfully."))
+                return redirect(secret.get_absolute_url())
+            except SecretRefreshError as exc:
+                messages.error(request, _("Secret update failed: %(error)s") % {"error": exc})
+        return render(request, self.template_name, {"object": secret, "form": form})
 
 
 class RefreshSecretView(View):

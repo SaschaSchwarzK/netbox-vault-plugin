@@ -43,6 +43,39 @@ class VaultSecretApiActionTests(TestCase):
         self.assertEqual(response.data['last_refresh_status'], RefreshStatusChoices.SYNCED)
         refresh_secret_mock.assert_called_once()
 
+    @patch('netbox_vault.api.views.set_secret_value')
+    def test_set_value_action_updates_secret_without_returning_plaintext(self, set_secret_value_mock):
+        self.secret.last_refresh_status = RefreshStatusChoices.SYNCED
+        set_secret_value_mock.return_value = self.secret
+
+        request = self.factory.post(
+            f'/api/plugins/vault/vault-secrets/{self.secret.pk}/set-value/',
+            {'value': 'new-secret-value'},
+            format='json',
+        )
+        force_authenticate(request, user=self.user)
+        response = VaultSecretViewSet.as_view({'post': 'set_value'})(request, pk=self.secret.pk)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['name'], self.secret.name)
+        self.assertNotIn('value', response.data)
+        set_secret_value_mock.assert_called_once_with(self.secret, 'new-secret-value')
+
+    def test_set_value_action_rejects_read_only_backend(self):
+        self.backend.read_only = True
+        self.backend.save(update_fields=('read_only', 'last_updated'))
+
+        request = self.factory.post(
+            f'/api/plugins/vault/vault-secrets/{self.secret.pk}/set-value/',
+            {'value': 'new-secret-value'},
+            format='json',
+        )
+        force_authenticate(request, user=self.user)
+        response = VaultSecretViewSet.as_view({'post': 'set_value'})(request, pk=self.secret.pk)
+
+        self.assertEqual(response.status_code, 409)
+        self.assertIn('read-only', response.data['detail'])
+
     @patch('netbox_vault.api.views.refresh_all_secrets')
     def test_refresh_all_action_returns_names_and_failures(self, refresh_all_mock):
         other = VaultSecret.objects.create(

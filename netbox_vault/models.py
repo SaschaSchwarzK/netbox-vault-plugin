@@ -50,6 +50,10 @@ class VaultBackend(NetBoxModel):
         default="7.5",
         help_text=_("Azure Key Vault API version. Ignored by other providers."),
     )
+    read_only = models.BooleanField(
+        default=False,
+        help_text=_("Disable all NetBox-driven secret write operations for this backend."),
+    )
     enabled = models.BooleanField(default=True)
     description = models.TextField(blank=True)
     extra_config = models.JSONField(default=dict, blank=True)

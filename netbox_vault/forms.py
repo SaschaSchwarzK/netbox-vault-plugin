@@ -12,14 +12,25 @@ BOOLEAN_CHOICES = (("", "---------"), ("true", _("Yes")), ("false", _("No")))
 
 class VaultBackendForm(NetBoxModelForm):
     fieldsets = (
-        FieldSet("name", "backend_type", "enabled", name=_("Vault backend")),
+        FieldSet("name", "backend_type", "enabled", "read_only", name=_("Vault backend")),
         FieldSet("api_url", "secret_engine", "default_namespace", "azure_api_version", name=_("Provider configuration")),
         FieldSet("description", "extra_config", name=_("Additional data")),
     )
 
     class Meta:
         model = VaultBackend
-        fields = ("name", "backend_type", "api_url", "secret_engine", "default_namespace", "azure_api_version", "enabled", "description", "extra_config")
+        fields = (
+            "name",
+            "backend_type",
+            "api_url",
+            "secret_engine",
+            "default_namespace",
+            "azure_api_version",
+            "read_only",
+            "enabled",
+            "description",
+            "extra_config",
+        )
 
     def clean(self):
         cleaned_data = super().clean() or self.cleaned_data
@@ -40,6 +51,15 @@ class VaultSecretForm(NetBoxModelForm):
     class Meta:
         model = VaultSecret
         fields = ("name", "vault_backend", "secret_path", "secret_key", "refresh_interval_hours", "enabled", "description")
+
+
+class VaultSecretValueForm(forms.Form):
+    value = forms.CharField(
+        label=_("New secret value"),
+        widget=forms.PasswordInput(render_value=False),
+        strip=False,
+        help_text=_("The plaintext value is sent to the vault and is never shown again by the UI."),
+    )
 
 
 class VaultBackendFilterForm(NetBoxModelFilterSetForm):

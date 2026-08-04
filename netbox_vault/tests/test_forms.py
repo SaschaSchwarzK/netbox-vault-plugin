@@ -1,6 +1,6 @@
 from django.test import TestCase
 
-from netbox_vault.forms import VaultBackendForm
+from netbox_vault.forms import VaultBackendForm, VaultSecretValueForm
 
 
 class VaultBackendFormTests(TestCase):
@@ -13,6 +13,7 @@ class VaultBackendFormTests(TestCase):
                 'secret_engine': '',
                 'default_namespace': '',
                 'azure_api_version': '7.5',
+                'read_only': False,
                 'enabled': True,
                 'description': '',
                 'extra_config': '{}',
@@ -31,10 +32,20 @@ class VaultBackendFormTests(TestCase):
                 'secret_engine': '',
                 'default_namespace': '',
                 'azure_api_version': '7.5',
+                'read_only': True,
                 'enabled': True,
                 'description': '',
                 'extra_config': '{}',
             }
         )
 
+        self.assertTrue(form.is_valid(), form.errors)
+
+
+class VaultSecretValueFormTests(TestCase):
+    def test_secret_value_form_requires_plaintext_value(self):
+        form = VaultSecretValueForm(data={'value': ''})
+        self.assertFalse(form.is_valid())
+
+        form = VaultSecretValueForm(data={'value': 'new-value'})
         self.assertTrue(form.is_valid(), form.errors)

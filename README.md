@@ -82,6 +82,8 @@ PLUGINS_CONFIG = {
             },
         },
         "redis_key_prefix": "netbox_vault",
+        "local_secret_cache_ttl": 10,
+        "local_secret_cache_maxsize": 256,
         "request_timeout": 15,
         "startup_sync_enabled": True,
     }
@@ -93,6 +95,8 @@ PLUGINS_CONFIG = {
 - `backend_credentials`: mapping of backend names or `credentials_key` aliases to provider credentials
 - `redis_key_prefix`: prefix for Redis keys used by this plugin
 - `redis_url`: optional explicit Redis URL; if omitted, the plugin uses NetBox's Redis cache configuration
+- `local_secret_cache_ttl`: short per-process in-memory cache lifetime in seconds for repeated secret reads; default `10`
+- `local_secret_cache_maxsize`: maximum number of plaintext secret entries kept in the short-lived per-process cache; default `256`
 - `request_timeout`: upstream request timeout in seconds
 - `startup_sync_enabled`: enable one-time startup cache warm-up logic
 - `startup_sync_lock_ttl`: Redis lock TTL for startup warm-up
@@ -131,9 +135,10 @@ PLUGINS_CONFIG = {
 ## Using secrets from code
 
 ```python
-from netbox_vault.secrets import get_secret_value
+from netbox_vault.secrets import get_secret_value, set_secret_value
 
 api_token = get_secret_value("api-token")
+set_secret_value("api-token", "rotated-token-value")
 ```
 
 Available helpers:
@@ -141,15 +146,27 @@ Available helpers:
 - `get_secret_value(identifier, refresh_if_due=False, allow_stale=True)`
 - `get_secret_record(identifier)`
 - `get_cached_secret_value(identifier)`
+- `set_secret_value(identifier, value, refresh_cache=True)` updates the upstream vault and refreshes the encrypted Redis cache
 - `refresh_secret(secret)`
 - `refresh_all_secrets(due_only=False)`
 - `refresh_due_or_missing_cache_secrets()`
 - `clear_secret_cache(secret)`
 
+Behavior notes:
+
+- Plaintext secret values are never shown by the NetBox UI
+- Plaintext secret values are never returned by the plugin API
+- The `POST /api/plugins/vault/vault-secrets/<id>/set-value/` action accepts a write-only `value` field and returns secret metadata only
+- Backends can be marked `read_only`; in that mode NetBox can still read and refresh secrets, but all NetBox-driven upstream write operations are blocked
+- Repeated reads within one app or worker process use a short-lived in-memory cache before falling back to Redis and decryption again
+- Because that optimization is per process, another container can briefly serve the previous plaintext until the local cache TTL expires; keep the TTL short if fast cross-container visibility matters
+
 ## Refresh behavior
 
 - Each secret has a refresh interval from 1 to 24 hours
 - The UI exposes ad hoc refresh for one secret and for all secrets
+- Writable backends also expose a one-time set/update action in the UI and API; after a successful upstream write the encrypted Redis cache is refreshed immediately
+- Read-only backends suppress the set/update UI flow and reject the API write action
 - The plugin registers one hourly NetBox system job in `netbox_vault/jobs.py`
 - That hourly job does not create one scheduled job per secret; it scans all enabled secrets and refreshes only those whose interval is due
 - Manual refresh remains available through the management command:

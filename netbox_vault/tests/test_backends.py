@@ -1,5 +1,5 @@
 from django.test import SimpleTestCase
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from netbox_vault.backends import (
     AWSSecretsManagerClient,
@@ -80,3 +80,55 @@ class BackendHelpersTests(SimpleTestCase):
         for backend_type, expected_class in backend_types.items():
             backend = VaultBackend(name=f'{backend_type}-backend', backend_type=backend_type, api_url='https://example.com')
             self.assertIsInstance(get_vault_client(backend), expected_class)
+
+    @patch('netbox_vault.backends.requests.post')
+    def test_hashicorp_store_secret_writes_secret_key_payload(self, post_mock):
+        post_mock.return_value.status_code = 200
+        backend = VaultBackend(name='hashi', backend_type='hashicorp', api_url='https://vault.example.com', secret_engine='secret')
+        secret = VaultSecret(name='secret-a', vault_backend=backend, secret_path='path/a', secret_key='password')
+
+        with patch('netbox_vault.backends._plugin_setting', return_value={'hashi': {'token': 'root'}}):
+            HashiCorpVaultClient(backend).store_secret(secret, 'value-1')
+
+        post_mock.assert_called_once()
+        self.assertEqual(post_mock.call_args.kwargs['json'], {'data': {'password': 'value-1'}})
+
+    @patch('netbox_vault.backends.requests.put')
+    def test_azure_store_secret_writes_value_payload(self, put_mock):
+        put_mock.return_value.status_code = 200
+        backend = VaultBackend(name='azure', backend_type='azure_key_vault', api_url='https://vault.example.com')
+        secret = VaultSecret(name='secret-a', vault_backend=backend, secret_path='db-password')
+
+        with patch('netbox_vault.backends._plugin_setting', return_value={'azure': {'access_token': 'token'}}):
+            AzureKeyVaultClient(backend).store_secret(secret, 'value-2')
+
+        put_mock.assert_called_once()
+        self.assertEqual(put_mock.call_args.kwargs['json'], {'value': 'value-2'})
+
+    @patch('netbox_vault.backends.requests.post')
+    def test_google_store_secret_adds_new_secret_version(self, post_mock):
+        post_mock.return_value.status_code = 200
+        backend = VaultBackend(
+            name='gcp',
+            backend_type=VaultBackendTypeChoices.GOOGLE_CLOUD_SECRET_MANAGER,
+            api_url='https://secretmanager.googleapis.com',
+            extra_config={'project_id': 'demo-project'},
+        )
+        secret = VaultSecret(name='secret-a', vault_backend=backend, secret_path='db-password')
+
+        with patch('netbox_vault.backends._plugin_setting', return_value={'gcp': {'access_token': 'token', 'project_id': 'demo-project'}}):
+            GoogleCloudSecretManagerClient(backend).store_secret(secret, 'value-3')
+
+        post_mock.assert_called_once()
+        self.assertIn(':addVersion', post_mock.call_args.args[0])
+        self.assertEqual(post_mock.call_args.kwargs['json']['payload']['data'], 'dmFsdWUtMw==')
+
+    def test_aws_store_secret_uses_put_secret_value(self):
+        backend = VaultBackend(name='aws', backend_type=VaultBackendTypeChoices.AWS_SECRETS_MANAGER, api_url='https://example.com')
+        secret = VaultSecret(name='secret-a', vault_backend=backend, secret_path='db-password')
+        client_mock = MagicMock()
+
+        with patch.object(AWSSecretsManagerClient, '_get_client', return_value=client_mock):
+            AWSSecretsManagerClient(backend).store_secret(secret, 'value-4')
+
+        client_mock.put_secret_value.assert_called_once_with(SecretId='db-password', SecretString='value-4')
