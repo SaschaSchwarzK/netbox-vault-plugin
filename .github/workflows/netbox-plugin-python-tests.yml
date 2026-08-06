@@ -38,7 +38,6 @@ jobs:
       NETBOX_TEST_ADMIN_EMAIL: admin@example.com
       NETBOX_TEST_ADMIN_PASSWORD: NetboxVaultTest123!
       VAULT_TEST_ROOT_TOKEN: root
-      AZURE_TEST_ACCESS_TOKEN: emulator-token
       GCP_TEST_PROJECT_ID: test-project
       GCP_TEST_ACCESS_TOKEN: gcp-emulator-token
       AWS_TEST_REGION: us-east-1

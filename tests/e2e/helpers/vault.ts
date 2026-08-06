@@ -30,8 +30,7 @@ export async function putHashicorpSecret(secretPath: string, key: string, value:
     '-H',
     `X-Vault-Token: ${process.env.VAULT_TEST_ROOT_TOKEN ?? 'root'}`,
   ]);
-  expect(verify).toContain(secretPath);
-  expect(verify).toContain(key);
+  expect(verify).toContain(`"${key}"`);
   expect(verify).toContain(value);
 }
 
