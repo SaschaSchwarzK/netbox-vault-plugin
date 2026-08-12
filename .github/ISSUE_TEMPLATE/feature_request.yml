@@ -1,0 +1,70 @@
+# .github/ISSUE_TEMPLATE/feature_request.yml
+
+name: Feature Request
+description: Suggest a new feature or improvement
+title: "[Feature]: "
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for suggesting an improvement.
+        Please describe the problem and proposed solution rather than only describing the desired implementation.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem / Use Case
+      description: What problem are you trying to solve?
+      placeholder: |
+        Describe the problem or use case.
+        Who would benefit from this feature and why?
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed Solution
+      description: Describe how you think the feature should work.
+      placeholder: I would like the application to...
+    validations:
+      required: true
+
+  - type: textarea
+    id: example
+    attributes:
+      label: Example
+      description: Provide an example of how the feature could be used.
+      placeholder: |
+        For example:
+        1. User selects ...
+        2. Application ...
+        3. Result ...
+    validations:
+      required: false
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives Considered
+      description: Have you considered any alternative solutions or workarounds?
+    validations:
+      required: false
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional Information
+      description: Add mockups, diagrams, screenshots, API examples, links, or other relevant information.
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before Submitting
+      options:
+        - label: I searched existing issues and did not find an existing request for this feature.
+          required: true
