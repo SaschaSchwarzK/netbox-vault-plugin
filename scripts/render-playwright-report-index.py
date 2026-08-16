@@ -30,6 +30,12 @@ def main() -> None:
         shutil.rmtree(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
+    if not artifacts_dir.exists():
+        raise SystemExit(
+            f"Artifacts directory '{artifacts_dir}' does not exist. "
+            "Ensure the Playwright report artifact upload ran and included hidden files."
+        )
+
     reports: list[tuple[str, str]] = []
     for artifact_dir in sorted(path for path in artifacts_dir.iterdir() if path.is_dir()):
         report_root = find_report_root(artifact_dir)

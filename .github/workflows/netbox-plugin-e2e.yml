@@ -116,6 +116,7 @@ jobs:
           name: netbox-plugin-e2e-report-v${{ matrix.netbox_version }}
           path: .playwright-report/
           if-no-files-found: warn
+          include-hidden-files: true
 
   publish-playwright-report:
     needs: e2e
