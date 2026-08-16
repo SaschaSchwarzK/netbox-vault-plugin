@@ -1,5 +1,12 @@
 import { test, expect } from '@playwright/test';
-import { createApiContext, uniqueName } from './helpers/netbox.js';
+import {
+  createApiContext,
+  expectVaultMenuVisible,
+  gotoVaultBackendAdd,
+  gotoVaultSecretAdd,
+  triggerRefreshAllSecrets,
+  uniqueName,
+} from './helpers/netbox.js';
 import { getBackendPayload, type BackendKind } from './helpers/backend-fixtures.js';
 import { putAwsSecret, putAzureSecret, putGoogleSecret, putHashicorpSecret } from './helpers/vault.js';
 
@@ -53,8 +60,8 @@ for (const config of backendConfigs) {
 
     const backendPayload = getBackendPayload(config.backendType, backendName);
     await page.goto(backendListUrl);
-    await expect(page.getByRole('button', { name: /^Vault$/i })).toBeVisible();
-    await page.getByRole('link', { name: /add vault backend/i }).click();
+    await expectVaultMenuVisible(page);
+    await gotoVaultBackendAdd(page);
     await page.locator('#id_name').fill(backendName);
     await page.locator('#id_backend_type').selectOption(config.backendType);
     await page.locator('#id_api_url').fill(String(backendPayload.api_url ?? ''));
@@ -73,7 +80,7 @@ for (const config of backendConfigs) {
     await expect(page.getByText(`Edited through the ${config.backendType} UI test`)).toBeVisible();
 
     await page.goto(secretListUrl);
-    await page.getByRole('link', { name: /add vault secret/i }).click();
+    await gotoVaultSecretAdd(page);
     await page.locator('#id_name').fill(secretName);
     await page.locator('#id_vault_backend').selectOption({ label: backendName });
     await page.getByLabel('Secret path').fill(externalSecretName);
@@ -146,7 +153,7 @@ test('UI refresh-all action refreshes all cached secrets', async ({ page }) => {
 
   try {
     await page.goto(secretListUrl);
-    await page.getByRole('link', { name: /refresh all cached secrets/i }).click();
+    await triggerRefreshAllSecrets(page);
     await expect(page).toHaveURL(/\/plugins\/vault\/secrets\/?$/);
 
     for (const fixture of fixtures) {

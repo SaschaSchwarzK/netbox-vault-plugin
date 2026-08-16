@@ -1,4 +1,4 @@
-import { APIRequestContext, Page, expect, request } from '@playwright/test';
+import { APIRequestContext, Locator, Page, expect, request } from '@playwright/test';
 import { adminPassword, adminUser, netboxBaseUrl } from './config.js';
 import { netboxShell } from './docker.js';
 
@@ -44,15 +44,42 @@ export async function createApiContext(page: Page): Promise<APIRequestContext> {
   });
 }
 
-export async function deleteBackendByName(api: APIRequestContext, backendApi: string, name: string) {
-  const existing = await api.get(`${backendApi}?name=${encodeURIComponent(name)}`);
-  if (!existing.ok()) {
-    return;
-  }
-  const payload = await existing.json();
-  for (const result of payload.results ?? []) {
-    await api.delete(`${backendApi}${result.id}/`);
-  }
+export function vaultMenuButton(page: Page): Locator {
+  return page.getByRole('button', { name: /^Vault(?:\s|$)/i });
+}
+
+export async function expectVaultMenuVisible(page: Page) {
+  await expect(vaultMenuButton(page)).toBeVisible();
+}
+
+export async function expectVaultMenuHidden(page: Page) {
+  await expect(vaultMenuButton(page)).toHaveCount(0);
+}
+
+export async function gotoVaultBackendAdd(page: Page) {
+  await page.goto('/plugins/vault/vault-backends/add/');
+  await expect(page.locator('#id_name')).toBeVisible();
+}
+
+export async function gotoVaultSecretAdd(page: Page) {
+  await page.goto('/plugins/vault/secrets/add/');
+  await expect(page.locator('#id_name')).toBeVisible();
+}
+
+export async function triggerRefreshAllSecrets(page: Page) {
+  await page.goto('/plugins/vault/secrets/refresh/');
+}
+
+export function deleteBackendByName(api: APIRequestContext, backendApi: string, name: string) {
+  return api.get(`${backendApi}?name=${encodeURIComponent(name)}`).then(async (existing) => {
+    if (!existing.ok()) {
+      return;
+    }
+    const payload = await existing.json();
+    for (const result of payload.results ?? []) {
+      await api.delete(`${backendApi}${result.id}/`);
+    }
+  });
 }
 
 export function uniqueName(prefix: string) {

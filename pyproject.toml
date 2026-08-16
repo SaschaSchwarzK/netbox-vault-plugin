@@ -4,13 +4,13 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "netbox-vault-plugin"
-version = "0.1.0"
+dynamic = ["version"]
 description = "NetBox plugin for caching vault-backed secrets with PostgreSQL metadata and an encrypted Redis cache"
 readme = "README.md"
 requires-python = ">=3.12"
 license = { text = "MPL-2.0" }
 authors = [
-  { name = "Sascha" }
+  { name = "Sascha Schwarz", email = "sascha@providerhoelle.de" }
 ]
 dependencies = [
   "boto3>=1.39.0",
@@ -25,9 +25,11 @@ classifiers = [
   "Topic :: Security",
 ]
 
+[tool.setuptools.dynamic]
+version = { attr = "netbox_vault.version.__version__" }
+
 [tool.setuptools.packages.find]
 include = ["netbox_vault*"]
-
 
 [tool.setuptools.package-data]
 netbox_vault = ["templates/netbox_vault/*.html"]

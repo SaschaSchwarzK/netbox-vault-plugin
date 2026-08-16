@@ -1,6 +1,14 @@
 import { test, expect } from '@playwright/test';
 import { cleanupSecretFixture, createSecretFixture, refreshFixture } from './helpers/backend-fixtures.js';
-import { createApiContext, ensureUserFixture, loginAs, removeUserFixture, uniqueName } from './helpers/netbox.js';
+import {
+  createApiContext,
+  ensureUserFixture,
+  expectVaultMenuHidden,
+  expectVaultMenuVisible,
+  loginAs,
+  removeUserFixture,
+  uniqueName,
+} from './helpers/netbox.js';
 
 const backendListUrl = '/plugins/vault/vault-backends/';
 const secretListUrl = '/plugins/vault/secrets/';
@@ -20,7 +28,7 @@ test('RBAC hides vault menu and denies access without permissions', async ({ bro
     const context = await browser.newContext({ storageState: { cookies: [], origins: [] } });
     const userPage = await context.newPage();
     await loginAs(userPage, username, password);
-    await expect(userPage.getByRole('button', { name: /^Vault$/i })).toHaveCount(0);
+    await expectVaultMenuHidden(userPage);
 
     const backendResponse = await userPage.goto(backendListUrl);
     expect(backendResponse?.status()).toBe(403);
@@ -62,15 +70,15 @@ test('RBAC enforces view-only access for vault models in UI and API', async ({ b
     const context = await browser.newContext({ storageState: { cookies: [], origins: [] } });
     const userPage = await context.newPage();
     await loginAs(userPage, username, password);
-    await expect(userPage.getByRole('button', { name: /^Vault$/i })).toBeVisible();
+    await expectVaultMenuVisible(userPage);
 
     await userPage.goto(backendListUrl);
     await expect(userPage.getByText(fixture.backendName)).toBeVisible();
-    await expect(userPage.getByRole('link', { name: /add vault backend/i })).toHaveCount(0);
+    await expect(userPage.getByRole('button', { name: /^Add$/i })).toHaveCount(0);
 
     await userPage.goto(secretListUrl);
     await expect(userPage.getByText(fixture.secretName)).toBeVisible();
-    await expect(userPage.getByRole('link', { name: /add vault secret/i })).toHaveCount(0);
+    await expect(userPage.getByRole('button', { name: /^Add$/i })).toHaveCount(0);
 
     const userApi = await createApiContext(userPage);
     const listResponse = await userApi.get(secretApi);

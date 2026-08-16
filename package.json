@@ -1,6 +1,7 @@
 {
   "name": "netbox-vault-plugin-e2e",
   "private": true,
+  "author": "Sascha Schwarz <sascha@providerhoelle.de>",
   "type": "module",
   "scripts": {
     "e2e:stack:start": "./scripts/start-e2e-stack.sh",

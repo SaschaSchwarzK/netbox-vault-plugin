@@ -4,6 +4,7 @@ on:
   push:
     paths:
       - '.github/workflows/netbox-plugin-python-tests.yml'
+      - '.github/netbox-version-matrix.json'
       - 'scripts/**'
       - 'tests/e2e/stack/**'
       - 'netbox_vault/**'
@@ -12,6 +13,7 @@ on:
   pull_request:
     paths:
       - '.github/workflows/netbox-plugin-python-tests.yml'
+      - '.github/netbox-version-matrix.json'
       - 'scripts/**'
       - 'tests/e2e/stack/**'
       - 'netbox_vault/**'
@@ -23,12 +25,32 @@ permissions:
   contents: read
 
 jobs:
+  matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      netbox: ${{ steps.read.outputs.netbox }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Read NetBox version matrix
+        id: read
+        run: |
+          echo 'netbox<<EOF' >> "$GITHUB_OUTPUT"
+          cat .github/netbox-version-matrix.json >> "$GITHUB_OUTPUT"
+          echo 'EOF' >> "$GITHUB_OUTPUT"
+
   python-tests:
+    needs: matrix
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.matrix.outputs.netbox) }}
+    name: Python Tests (NetBox v${{ matrix.netbox_version }})
     env:
       NETBOX_DOCKER_REF: release
-      NETBOX_IMAGE: docker.io/netboxcommunity/netbox:v4.6-5.0.2
+      NETBOX_IMAGE: ${{ matrix.netbox_image }}
       NETBOX_TEST_PORT: 8001
       VAULT_TEST_PORT: 8201
       AZURE_TEST_PORT: 4998
@@ -60,6 +82,6 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: netbox-plugin-python-test-artifacts
+          name: netbox-plugin-python-test-artifacts-v${{ matrix.netbox_version }}
           path: .e2e-artifacts/
           if-no-files-found: warn

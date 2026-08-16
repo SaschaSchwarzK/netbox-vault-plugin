@@ -22,7 +22,7 @@ node_modules/
 # Test and runtime artifacts
 .ci-artifacts/
 .e2e-artifacts/
-playwright-report/
+.playwright-report/
 test-results/
 
 # OS/editor noise

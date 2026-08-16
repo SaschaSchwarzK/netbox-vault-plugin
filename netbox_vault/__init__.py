@@ -4,6 +4,8 @@ import threading
 
 from netbox.plugins import PluginConfig, get_plugin_config
 
+from .version import __author__, __author_email__, __version__
+
 logger = logging.getLogger(__name__)
 
 
@@ -11,8 +13,9 @@ class NetBoxVaultConfig(PluginConfig):
     name = "netbox_vault"
     verbose_name = "NetBox Vault"
     description = "Synchronize vault-backed secrets into an encrypted NetBox cache"
-    version = "0.1.0"
-    author = "Sascha"
+    version = __version__
+    author = __author__
+    author_email = __author_email__
     base_url = "vault"
     min_version = "4.4.0"
     default_settings = {

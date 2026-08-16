@@ -1,0 +1,123 @@
+# .github/ISSUE_TEMPLATE/bug_report.yml
+
+name: Bug Report
+description: Report a reproducible problem or unexpected behavior
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug.
+        Please provide as much information as possible so the issue can be reproduced.
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Bug Description
+      description: Clearly describe the problem you encountered.
+      placeholder: Describe what went wrong...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior
+      description: What did you expect to happen?
+      placeholder: I expected...
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual Behavior
+      description: What actually happened?
+      placeholder: Instead...
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to Reproduce
+      description: Provide the steps required to reproduce the problem.
+      placeholder: |
+        1. Install ...
+        2. Configure ...
+        3. Run ...
+        4. Observe ...
+    validations:
+      required: true
+
+  - type: input
+    id: nb_version
+    attributes:
+      label: Netbox Version
+      description: Which version or release are you using?
+      placeholder: "e.g. v1.4.2"
+    validations:
+      required: true
+
+  - type: input
+    id: pl_version
+    attributes:
+      label: Plugin Version
+      description: Which version or release are you using?
+      placeholder: "e.g. v1.4.2"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: container
+    attributes:
+      label: Are you running NetBox in a containerized environment?
+      description: Please select "Yes" if you are running NetBox in a containerized environment with official contaiuner images (e.g. Docker, Kubernetes, etc.). Otherwise, select "No".
+      options:
+        - "Yes"
+        - "No"
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Provide relevant environment information.
+      placeholder: |
+        Deployment: Docker / Kubernetes / Bare Metal
+        Python version:
+        Database:
+        Browser:
+        Other relevant components:
+    validations:
+      required: false
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / Error Messages
+      description: Paste relevant logs, stack traces, or error messages.
+      render: shell
+    validations:
+      required: false
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional Information
+      description: Add screenshots, configuration snippets, or anything else that might help.
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before Submitting
+      options:
+        - label: I searched existing issues and did not find a duplicate.
+          required: true
+        - label: I am using a supported/current version of the application.
+          required: false
