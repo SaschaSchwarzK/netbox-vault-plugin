@@ -26,7 +26,6 @@ services:
       - "${NETBOX_TEST_PORT:-8001}:8080"
     environment:
       <<: *netbox_vault_test_env
-      NETBOX_VAULT_STARTUP_SYNC_ENABLED: "true"
 
   netbox-worker:
     image: netbox-vault-e2e:latest

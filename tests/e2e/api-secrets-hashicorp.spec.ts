@@ -67,9 +67,23 @@ print('ok')`);
   expect(getPlainValueThroughService(secretName)).toContain('hashi-updated-value');
 
   await putHashicorpSecret(externalSecretPath, 'value', 'hashi-still-fresh-value');
-  markSecretFresh(secretName);
-  netboxManage('refresh_vault_secrets', '--due-only');
-  expect(getPlainValueThroughService(secretName)).not.toContain('hashi-still-fresh-value');
+  netboxShell(`from django.utils import timezone
+from netbox_vault.models import VaultSecret
+VaultSecret.objects.update(last_refreshed=timezone.now())
+print('ok')`);
+
+  const freshBeforeResponse = await api.get(`${secretApi}${createdSecret.id}/`);
+  expect(freshBeforeResponse.ok()).toBeTruthy();
+  const freshBefore = await freshBeforeResponse.json();
+  expect(freshBefore.is_refresh_due).toBe(false);
+
+  const dueOnlyOutput = netboxManage('refresh_vault_secrets', '--due-only');
+  expect(dueOnlyOutput).not.toContain(`Refreshed ${secretName}`);
+
+  const freshAfterResponse = await api.get(`${secretApi}${createdSecret.id}/`);
+  expect(freshAfterResponse.ok()).toBeTruthy();
+  const freshAfter = await freshAfterResponse.json();
+  expect(freshAfter.is_refresh_due).toBe(false);
 
   const patchResponse = await api.patch(`${secretApi}${createdSecret.id}/`, {
     data: {
