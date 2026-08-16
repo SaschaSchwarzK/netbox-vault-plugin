@@ -2,6 +2,8 @@
 
 `netbox_vault` is a NetBox plugin that synchronizes secrets from external vault providers into a shared encrypted cache for NetBox.
 
+Maintainer: Sascha Schwarz <sascha@providerhoelle.de>
+
 ## Motivation
 
 In larger NetBox deployments, custom scripts and plugins often need the same credentials repeatedly. Fetching those values from an external vault for every single execution creates unnecessary latency, extra code in each script, and rate-limit pressure on the upstream vault. A per-process memory cache does not help when NetBox is scaled across multiple app and worker containers.
@@ -14,6 +16,14 @@ This plugin solves that by keeping vault backend definitions and secret metadata
 - Azure Key Vault
 - Google Cloud Secret Manager
 - AWS Secrets Manager
+
+## Tested NetBox versions
+
+The automated workflow matrix currently validates the plugin against these NetBox release lines:
+
+- `v4.4.10`
+- `v4.5.10`
+- `v4.6.8`
 
 ## Architecture
 
@@ -39,7 +49,7 @@ This plugin solves that by keeping vault backend definitions and secret metadata
 
 - Plaintext is never written to PostgreSQL by the plugin runtime
 - Cached secret values are encrypted with a Fernet key derived from Django/NetBox `SECRET_KEY`
-- Changing `SECRET_KEY` invalidates the ability to decrypt already-cached cached values
+- Changing `SECRET_KEY` invalidates the ability to decrypt already-cached values
 - Backend access credentials are read from `PLUGINS_CONFIG` or environment-backed configuration, not from the database
 - Secret metadata remains in PostgreSQL so RBAC, filtering, audit state, and refresh tracking continue to use normal NetBox models
 
@@ -132,6 +142,17 @@ PLUGINS_CONFIG = {
 - Secret path on each cached secret: secret name or ARN
 - Secret key is ignored
 
+## How to use
+
+1. Create a vault backend in NetBox and reference the credentials block you configured in `PLUGINS_CONFIG`.
+   Placeholder image: `docs/images/01-create-backend.png`
+2. Add one or more vault secrets, set their upstream paths, and choose the refresh interval.
+   Placeholder image: `docs/images/02-create-secret.png`
+3. Trigger a manual refresh once to populate the encrypted Redis cache and verify the sync state.
+   Placeholder image: `docs/images/03-refresh-secret.png`
+4. Read cached values from your own plugin code or custom scripts using the helper functions below.
+   Placeholder image: `docs/images/04-read-secret-from-code.png`
+
 ## Using secrets from code
 
 ```python
@@ -185,14 +206,6 @@ Run it locally with:
 ./scripts/run-smoke-test.sh
 ```
 
-What it checks:
-
-- the plugin image builds on top of the official NetBox Docker image
-- NetBox reaches a healthy state
-- the login page responds
-- `netbox_vault` is present in `settings.PLUGINS`
-- the plugin migration is visible inside the container
-
 Useful local options:
 
 ```bash
@@ -213,71 +226,32 @@ Stop it with:
 ./scripts/stop-local-netbox.sh
 ```
 
-## Test status
+## CI and Playwright report
 
-As of August 3, 2026:
+The repository keeps the latest successful Playwright HTML reports from `main` under [`playwright-report/index.html`](playwright-report/index.html). The report update commit is generated only after the `main` branch e2e workflow succeeds, and that commit changes only the committed report assets so it does not retrigger the test workflows.
 
-- the plugin-native Django/NetBox regression suite passes with `36` tests
-- the local Docker-backed validation uses the official `netbox-community/netbox-docker` stack
-- the Playwright end-to-end harness targets the same Docker stack plus vault emulators
+<object data="./playwright-report/index.html" type="text/html" width="100%" height="640">
+  <p>The embedded HTML report may not render in every Markdown viewer. Open <a href="./playwright-report/index.html">playwright-report/index.html</a> directly if needed.</p>
+</object>
 
-## GitHub Actions smoke test
+Local Playwright output is written to `.playwright-report/` and remains ignored by Git.
 
-The Docker smoke harness is used in [.github/workflows/netbox-docker-smoke.yml](.github/workflows/netbox-docker-smoke.yml).
+## Versioning and releases
 
-## GitHub Actions Python tests
+- The package version is defined once in `netbox_vault/version.py`
+- Release tags must use the format `vX.Y.Z`
+- The release workflow validates that the Git tag and the built package version match before publishing
+- The release workflow runs the Python test suite across the supported NetBox matrix before building and publishing the package
 
-The plugin-native Django/NetBox regression tests are run in [.github/workflows/netbox-plugin-python-tests.yml](.github/workflows/netbox-plugin-python-tests.yml).
+## GitHub Actions
 
-Run the same suite locally with:
+- Python regression suite: [.github/workflows/netbox-plugin-python-tests.yml](.github/workflows/netbox-plugin-python-tests.yml)
+- Docker smoke suite: [.github/workflows/netbox-docker-smoke.yml](.github/workflows/netbox-docker-smoke.yml)
+- Playwright e2e suite and report publishing: [.github/workflows/netbox-plugin-e2e.yml](.github/workflows/netbox-plugin-e2e.yml)
+- Release pipeline: [.github/workflows/release.yml](.github/workflows/release.yml)
 
-```bash
-./scripts/run-python-tests.sh
-```
+## License
 
-## End-to-end tests
+This project is licensed under the Mozilla Public License 2.0. See [LICENSE](LICENSE).
 
-This repository also includes a Playwright-based end-to-end harness that starts a dedicated NetBox stack with:
-
-- the plugin installed in an official `netbox-community/netbox-docker` image
-- deterministic admin credentials for the test stack
-- a HashiCorp Vault dev container
-- a `jamesgoulddev/azure-keyvault-emulator` container
-- a Google Cloud Secret Manager emulator
-- an AWS Secrets Manager emulator
-
-The backend seed helpers verify writes by reading the secret back from each emulator instead of relying on provider-specific write response bodies. That keeps the suite stable across emulator image changes and GitHub Runner differences.
-
-Start the e2e stack locally with:
-
-```bash
-./scripts/start-e2e-stack.sh
-```
-
-Run the full Playwright suite with:
-
-```bash
-./scripts/run-e2e-tests.sh
-```
-
-Or run Playwright directly once the stack is up:
-
-```bash
-npx playwright test tests/e2e --workers=1
-```
-
-Stop the e2e stack with:
-
-```bash
-./scripts/stop-e2e-stack.sh
-```
-
-Default e2e credentials and ports:
-
-- NetBox: `http://127.0.0.1:8001/`
-- Username: `admin`
-- Password: `NetboxVaultTest123!`
-- HashiCorp Vault: `http://127.0.0.1:8201/`
-- Azure Key Vault emulator: `https://127.0.0.1:4998/`
-- Google Secret Manager emulator: `http://127.0.0.1:8085/`
-- AWS Secrets Manager emulator: `http://127.0.0.1:4567/`
+Copyright (c) 2026 Sascha Schwarz <sascha@providerhoelle.de>

@@ -1,0 +1,210 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+
+jobs:
+  matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      netbox: ${{ steps.read.outputs.netbox }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Read NetBox version matrix
+        id: read
+        run: |
+          echo 'netbox<<EOF' >> "$GITHUB_OUTPUT"
+          cat .github/netbox-version-matrix.json >> "$GITHUB_OUTPUT"
+          echo 'EOF' >> "$GITHUB_OUTPUT"
+
+  test:
+    name: Test (NetBox v${{ matrix.netbox_version }})
+    needs: matrix
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.matrix.outputs.netbox) }}
+    env:
+      NETBOX_DOCKER_REF: release
+      NETBOX_IMAGE: ${{ matrix.netbox_image }}
+      NETBOX_TEST_PORT: 8001
+      VAULT_TEST_PORT: 8201
+      AZURE_TEST_PORT: 4998
+      GCP_TEST_PORT: 8085
+      AWS_TEST_PORT: 4567
+      NETBOX_TEST_ADMIN_USER: admin
+      NETBOX_TEST_ADMIN_EMAIL: admin@example.com
+      NETBOX_TEST_ADMIN_PASSWORD: NetboxVaultTest123!
+      VAULT_TEST_ROOT_TOKEN: root
+      GCP_TEST_PROJECT_ID: test-project
+      GCP_TEST_ACCESS_TOKEN: gcp-emulator-token
+      AWS_TEST_REGION: us-east-1
+      AWS_TEST_ACCESS_KEY_ID: test
+      AWS_TEST_SECRET_ACCESS_KEY: test
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Show Docker versions
+        run: |
+          docker --version
+          docker compose version
+
+      - name: Run plugin Python test suite
+        run: ./scripts/run-python-tests.sh
+
+  build:
+    name: Build package
+    needs:
+      - test
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install build tools
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install build twine
+
+      - name: Build package
+        run: |
+          python -m build
+
+      - name: Validate tag matches package version
+        shell: bash
+        run: |
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+
+          PACKAGE_VERSION=$(python - <<'PY'
+          import glob
+          import zipfile
+          from email.parser import Parser
+
+          wheels = glob.glob('dist/*.whl')
+
+          if len(wheels) != 1:
+              raise SystemExit(
+                  f'Expected exactly one wheel in dist/, found {len(wheels)}'
+              )
+
+          wheel = wheels[0]
+
+          with zipfile.ZipFile(wheel) as archive:
+              metadata_files = [
+                  name
+                  for name in archive.namelist()
+                  if name.endswith('.dist-info/METADATA')
+              ]
+
+              if len(metadata_files) != 1:
+                  raise SystemExit(
+                      f'Expected exactly one METADATA file, '
+                      f'found {len(metadata_files)}'
+                  )
+
+              metadata = archive.read(metadata_files[0]).decode('utf-8')
+              parsed = Parser().parsestr(metadata)
+
+              print(parsed['Version'])
+          PY
+          )
+
+          echo "Git tag version : ${TAG_VERSION}"
+          echo "Package version : ${PACKAGE_VERSION}"
+
+          if [ "${TAG_VERSION}" != "${PACKAGE_VERSION}" ]; then
+            echo "::error::Git tag version (${TAG_VERSION}) does not match package version (${PACKAGE_VERSION})"
+            exit 1
+          fi
+
+          echo 'Version validation successful.'
+
+      - name: Validate distributions
+        run: |
+          python -m twine check dist/*
+
+      - name: Display distributions
+        run: |
+          ls -lh dist/
+
+      - name: Upload distributions
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-package-distributions
+          path: dist/
+          if-no-files-found: error
+
+  publish-pypi:
+    name: Publish to PyPI
+
+    needs:
+      - build
+
+    runs-on: ubuntu-latest
+
+    environment:
+      name: pypi
+      url: https://pypi.org/
+
+    permissions:
+      id-token: write
+
+    steps:
+      - name: Download distributions
+        uses: actions/download-artifact@v4
+        with:
+          name: python-package-distributions
+          path: dist/
+
+      - name: Display distributions
+        run: |
+          ls -lh dist/
+
+      - name: Publish distributions to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+
+  github-release:
+    name: Create GitHub Release
+
+    needs:
+      - publish-pypi
+
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download distributions
+        uses: actions/download-artifact@v4
+        with:
+          name: python-package-distributions
+          path: dist/
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" \
+            dist/* \
+            --repo "${GITHUB_REPOSITORY}" \
+            --title "${GITHUB_REF_NAME}" \
+            --generate-notes \
+            --verify-tag

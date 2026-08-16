@@ -4,6 +4,7 @@ on:
   push:
     paths:
       - '.github/workflows/netbox-docker-smoke.yml'
+      - '.github/netbox-version-matrix.json'
       - 'ci/**'
       - 'netbox_vault/**'
       - 'pyproject.toml'
@@ -11,6 +12,7 @@ on:
   pull_request:
     paths:
       - '.github/workflows/netbox-docker-smoke.yml'
+      - '.github/netbox-version-matrix.json'
       - 'ci/**'
       - 'netbox_vault/**'
       - 'pyproject.toml'
@@ -21,12 +23,32 @@ permissions:
   contents: read
 
 jobs:
+  matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      netbox: ${{ steps.read.outputs.netbox }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Read NetBox version matrix
+        id: read
+        run: |
+          echo 'netbox<<EOF' >> "$GITHUB_OUTPUT"
+          cat .github/netbox-version-matrix.json >> "$GITHUB_OUTPUT"
+          echo 'EOF' >> "$GITHUB_OUTPUT"
+
   smoke-test:
+    needs: matrix
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.matrix.outputs.netbox) }}
+    name: Smoke Test (NetBox v${{ matrix.netbox_version }})
     env:
       NETBOX_DOCKER_REF: release
-      NETBOX_IMAGE: docker.io/netboxcommunity/netbox:v4.6-5.0.2
+      NETBOX_IMAGE: ${{ matrix.netbox_image }}
 
     steps:
       - name: Check out repository
@@ -44,6 +66,6 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: netbox-docker-smoke-logs
+          name: netbox-docker-smoke-logs-v${{ matrix.netbox_version }}
           path: .ci-artifacts/
           if-no-files-found: warn
